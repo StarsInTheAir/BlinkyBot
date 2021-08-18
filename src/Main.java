@@ -7,6 +7,8 @@ import discord4j.core.object.entity.Guild;
 import discord4j.core.object.entity.Member;
 import discord4j.core.object.entity.Role;
 import discord4j.core.object.entity.User;
+import discord4j.rest.util.Permission;
+import discord4j.rest.util.PermissionSet;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -14,6 +16,7 @@ import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public final class Main {
@@ -32,9 +35,12 @@ public final class Main {
         if (client == null) throw new NullPointerException("Client is null!");
 
         client.on(MessageCreateEvent.class).subscribe(event -> {
-            if (isGuildAlphaHeroes(event.getGuild().block()) &&
+            final Guild guild = event.getGuild().block();
+
+            if (isGuildAlphaHeroes(guild) &&
                     isAuthorMee6(event) &&
-                    isLevelUpMessage(event.getMessage().getContent())) {
+                    isLevelUpMessage(event.getMessage().getContent()) &&
+                    canAddRoles(guild)) {
                 addLevelRolesToMember(
                         LevelUpMessageInfo.getLevelInLevelUpMessageContent(event.getMessage().getContent()),
                         event.getMessage().getUserMentions().get(0).asMember(ALPHA_HEROES_GUILD_ID).block()
@@ -70,6 +76,14 @@ public final class Main {
 
     private static boolean isLevelUpMessage(String content) {
         return content != null && LevelUpMessageInfo.levelUpMessageContentRegex.matcher(content).matches();
+    }
+
+    private static boolean canAddRoles(final Guild guild) {
+        final Member selfMember = guild.getSelfMember().block();
+        final Function<PermissionSet, Boolean> containsManageGuildPermission = permissions ->
+                permissions != null && permissions.contains(Permission.MANAGE_GUILD);
+
+        return selfMember != null && containsManageGuildPermission.apply(selfMember.getBasePermissions().block());
     }
 
     private static void addLevelRolesToMember(final int memberLevel, final Member member) {
